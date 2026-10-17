@@ -1,0 +1,26 @@
+{
+    "version": "0.2",
+    "language": "en",
+	"ignorePaths": [
+		"/.*",
+		"node_modules",
+		"esbuild.config.mjs",
+		"eslint.config.mjs",
+		"package-lock.json",
+		"package.json",
+		"tsconfig.json",
+		"main.js",
+		"data.json"
+	  ],
+    "words": [
+        "frontmatter",
+        "keymap",
+        "namikaze",
+        "nums",
+        "outliner",
+        "sublists",
+        "unmark",
+        "unmarking",
+        "unmarks"
+    ]
+}

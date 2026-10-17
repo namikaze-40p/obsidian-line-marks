@@ -1,8 +1,348 @@
-/*
+/* No gutter in nested editors such as table cells (it would shift the text in the cell).
+   The gutter container (.cm-gutters) has padding too, so hide it as well if it contains only this plugin's gutter. */
+.line-marks-nested .line-marks-gutter,
+.line-marks-nested .cm-gutters:not(:has(.cm-gutter:not(.line-marks-gutter))) {
+	display: none;
+}
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.line-marks-gutter .cm-gutterElement {
+	padding-left: 5px;
+	cursor: default;
+}
 
-If your plugin does not need CSS, delete this file.
+/* Color of a mark. Overridden by `line-marks-color-*`. */
+/* No color uses the text color (dark on light themes, light on dark themes), to tell it apart from Blue. */
+.line-marks-icon,
+.line-marks-color-dot,
+.line-marks-color-swatch,
+.line-marks-scrollbar-marker {
+	--line-marks-color: var(--text-normal);
+}
 
-*/
+.line-marks-color-red { --line-marks-color: var(--color-red); }
+.line-marks-color-orange { --line-marks-color: var(--color-orange); }
+.line-marks-color-yellow { --line-marks-color: var(--color-yellow); }
+.line-marks-color-green { --line-marks-color: var(--color-green); }
+.line-marks-color-blue { --line-marks-color: var(--color-blue); }
+.line-marks-color-purple { --line-marks-color: var(--color-purple); }
+
+/* The icon shape is a mask filled with the background color, so that the color can be changed. */
+.line-marks-icon {
+	display: inline-block;
+	width: 1rem;
+	height: 1rem;
+	transform: translate(-5px, 5px);
+	background-color: var(--line-marks-color);
+	-webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z' /></svg>") center / contain no-repeat;
+	mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z' /></svg>") center / contain no-repeat;
+}
+
+.line-marks-color-dot {
+	display: inline-block;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background-color: var(--line-marks-color);
+}
+
+
+
+.line-marks-edit-modal .line-marks-color-swatches {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.line-marks-edit-modal .line-marks-color-swatch {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	background-color: var(--line-marks-color);
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.line-marks-edit-modal .line-marks-color-swatch:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 2px var(--background-primary), 0 0 0 4px var(--background-modifier-border-focus);
+}
+
+.line-marks-edit-modal .line-marks-color-swatch.is-none {
+	background-color: transparent;
+	border: 1px solid var(--background-modifier-border);
+}
+
+.line-marks-edit-modal .line-marks-color-swatch.is-none svg {
+	width: var(--icon-s);
+	height: var(--icon-s);
+}
+
+.line-marks-edit-modal .line-marks-color-swatch.is-selected {
+	box-shadow: 0 0 0 2px var(--background-primary), 0 0 0 4px var(--interactive-accent);
+}
+
+.line-marks-modal .line-marks-suggestion {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.line-marks-modal .line-marks-suggestion-content {
+	flex: 1;
+	min-width: 0;
+}
+
+.line-marks-modal .line-marks-suggestion-content .suggestion-title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.line-marks-modal .line-marks-suggestion-content .suggestion-note {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.line-marks-modal .line-marks-suggestion-content .suggestion-title {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.line-marks-modal .line-marks-suggestion-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.line-marks-modal .line-marks-missing-badge {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: var(--size-2-1);
+	color: var(--text-warning);
+	font-size: var(--font-ui-smaller);
+}
+
+.line-marks-modal .line-marks-missing-icon {
+	display: inline-flex;
+}
+
+.line-marks-modal .line-marks-missing-icon svg {
+	width: var(--icon-xs);
+	height: var(--icon-xs);
+}
+
+.line-marks-modal .is-missing .suggestion-note {
+	text-decoration: line-through;
+}
+
+/* Keep the toolbar at the top and scroll only the list. */
+.line-marks-view {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	padding: 0;
+}
+
+.line-marks-view .line-marks-view-list {
+	flex: 1;
+	overflow-y: auto;
+	padding: var(--size-4-2) var(--size-4-3) var(--size-4-8);
+}
+
+.line-marks-view .line-marks-view-location {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	overflow: hidden;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.line-marks-view .line-marks-view-mark.is-missing .line-marks-view-location {
+	text-decoration: line-through;
+}
+
+.line-marks-view .tree-item-inner {
+	display: flex;
+	align-items: baseline;
+	gap: var(--size-4-2);
+	min-width: 0;
+}
+
+.line-marks-view .line-marks-view-group-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.line-marks-view .line-marks-view-folder {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.line-marks-view .line-marks-view-group.is-active > .tree-item-self .line-marks-view-group-name {
+	color: var(--text-accent);
+	font-weight: var(--font-semibold);
+}
+
+.line-marks-view .line-marks-view-group.is-collapsed > .tree-item-children {
+	display: none;
+}
+
+/* When collapsed, turn the expand icon (▾) sideways (▸). */
+.line-marks-view .line-marks-view-group > .tree-item-self .collapse-icon svg {
+	transition: transform 100ms ease-in-out;
+}
+
+.line-marks-view .line-marks-view-group.is-collapsed > .tree-item-self .collapse-icon svg {
+	transform: rotate(calc(var(--direction, 1) * -90deg));
+}
+
+.line-marks-view .line-marks-view-group.is-missing .line-marks-view-group-name {
+	text-decoration: line-through;
+}
+
+.line-marks-view .line-marks-missing-icon {
+	display: inline-flex;
+	align-self: center;
+	color: var(--text-warning);
+}
+
+.line-marks-view .line-marks-missing-icon svg {
+	width: var(--icon-xs);
+	height: var(--icon-xs);
+}
+
+.line-marks-view .line-marks-view-mark {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding-inline-start: var(--size-4-6);
+}
+
+.line-marks-view .line-marks-view-line {
+	align-self: flex-start;
+	flex-shrink: 0;
+	min-width: 2em;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+	text-align: end;
+}
+
+.line-marks-view .line-marks-view-mark-content {
+	flex: 1;
+	min-width: 0;
+}
+
+.line-marks-view .line-marks-view-mark-title {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	min-width: 0;
+}
+
+.line-marks-view .line-marks-view-label,
+.line-marks-view .line-marks-view-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.line-marks-view .line-marks-view-text.mod-sub {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.line-marks-view .line-marks-unmark-button {
+	visibility: hidden;
+	flex-shrink: 0;
+	padding: var(--size-2-1);
+}
+
+.line-marks-view .line-marks-view-mark:hover .line-marks-unmark-button {
+	visibility: visible;
+}
+
+/* A larger hit area, easier to tap with a finger. */
+.line-marks-view .line-marks-more-button {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	min-width: 36px;
+	min-height: 32px;
+	margin-block: calc(-1 * var(--size-2-2));
+}
+
+.line-marks-label-suggestion {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.line-marks-label-suggestion-text {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.line-marks-label-suggestion-count {
+	flex-shrink: 0;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+/* The track laid over the scrollbar. Clicks pass through except on markers, so the scrollbar stays usable. */
+.line-marks-scrollbar {
+	position: absolute;
+	right: 0;
+	z-index: var(--layer-cover, 5);
+	width: 10px;
+	pointer-events: none;
+}
+
+.line-marks-scrollbar-marker {
+	position: absolute;
+	right: 1px;
+	left: 1px;
+	height: 3px;
+	margin-top: -1.5px;
+	border-radius: 1px;
+	background-color: var(--line-marks-color);
+	cursor: pointer;
+	pointer-events: auto;
+}
+
+body:not(.is-mobile) .line-marks-scrollbar-marker:hover {
+	height: 5px;
+	margin-top: -2.5px;
+}
+
+
+/* On touch devices, markers are too small to tap and easy to hit by accident when scrolling from the right edge, so they are display-only. */
+.is-mobile .line-marks-scrollbar-marker {
+	cursor: default;
+	pointer-events: none;
+}
