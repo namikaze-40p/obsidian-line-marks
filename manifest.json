@@ -1,7 +1,7 @@
 {
 	"id": "line-marks",
 	"name": "Line Marks",
-	"version": "0.1.0",
+	"version": "0.2.0-beta.3",
 	"minAppVersion": "1.13.0",
 	"description": "Mark lines you want to come back to, and jump between them across notes. Marks follow their lines as you edit.",
 	"author": "namikaze-40p",
