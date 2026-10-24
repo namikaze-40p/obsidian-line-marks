@@ -1,9 +1,29 @@
-import { App, Editor, MarkdownView } from 'obsidian';
+import { App, Editor, EditorPosition, MarkdownView, TFile } from 'obsidian';
+import { EditorView } from '@codemirror/view';
 import { CustomWsLeaf, WindowItem } from './type';
+import { LineBlock } from './cursor-position';
 
-const setCursor = (editor: Editor, line: number): void => {
-	editor.setCursor({ line, ch: 0 });
-	editor.focus();
+const setCursor = (editor: Editor, pos: EditorPosition): void => {
+	editor.setCursor(pos);
+	// Focus the editor of the note itself. editor.focus() focuses the editor of a table cell instead while it is open (in Live Preview),
+	// which keeps showing the cursor in the table after jumping elsewhere.
+	(editor as Editor & { cm: EditorView }).cm.focus();
+};
+
+// The kind of block the line (0-based) is in, according to the metadata cache.
+// The cache can lag behind the latest edits for a moment, which only affects where the cursor is placed.
+const findLineBlock = (app: App, file: TFile | null, line: number): LineBlock => {
+	const sections = file ? app.metadataCache.getFileCache(file)?.sections : undefined;
+	const section = sections?.find(({ position }) => position.start.line <= line && line <= position.end.line);
+	switch (section?.type) {
+		case 'code':
+		case 'math':
+			return 'code';
+		case 'table':
+			return 'table';
+		default:
+			return 'other';
+	}
 };
 
 const getExistingLeaf = (app: App, path: string): CustomWsLeaf | undefined => {
@@ -33,5 +53,6 @@ const generateWindows = (leaves: CustomWsLeaf[]): WindowItem[] => {
 
 export const helpers = {
 	setCursor,
+	findLineBlock,
 	getExistingLeaf,
 };

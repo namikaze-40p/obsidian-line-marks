@@ -5,6 +5,7 @@ import { formatShortcut, Shortcut, shortcutFromEvent } from './shortcut';
 import { MarkListGroupBy, MarkListSortOrder } from './mark-list';
 import { MARK_COLORS } from './color';
 import { MarkColor } from './type';
+import { CursorPosition } from './cursor-position';
 
 export const LIST_SORT_ORDER: Record<MarkListSortOrder, string> = {
 	fileName: 'File name and line',
@@ -25,9 +26,16 @@ export const OPEN_IN: Record<OpenIn, string> = {
 	new: 'New tab',
 };
 
+export const CURSOR_POSITION: Record<CursorPosition, string> = {
+	lineStart: 'Start of line',
+	textStart: 'Start of text',
+	lineEnd: 'End of line',
+};
+
 export interface Settings {
 	isAllowCrossFile: boolean;
 	openIn: OpenIn;
+	cursorPosition: CursorPosition;
 	isShowScrollbarMarks: boolean;
 	// Color of new marks.
 	defaultColor: MarkColor | 'none';
@@ -42,6 +50,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
 	isAllowCrossFile: true,
 	openIn: 'current',
+	cursorPosition: 'lineStart',
 	isShowScrollbarMarks: true,
 	defaultColor: 'none',
 	listSortOrder: 'fileName',
@@ -72,6 +81,11 @@ export class SettingTab extends PluginSettingTab {
 				name: 'Open in',
 				desc: 'Where to open a file when you jump to a mark in a file that is not open yet. If the file is already open, its tab is used. In the mark lists, Ctrl/Cmd+click (Ctrl/Cmd+Enter in the search) opens it the other way.',
 				control: { type: 'dropdown', key: 'openIn', options: OPEN_IN, defaultValue: DEFAULT_SETTINGS.openIn },
+			},
+			{
+				name: 'Cursor position after jump',
+				desc: 'Where to place the cursor on the line after jumping to a mark. "Start of text" skips list markers, checkboxes, heading and quote markers. Other plugins (e.g. Outliner) may move the cursor afterwards. Has no effect in reading mode.',
+				control: { type: 'dropdown', key: 'cursorPosition', options: CURSOR_POSITION, defaultValue: DEFAULT_SETTINGS.cursorPosition },
 			},
 			{
 				name: 'Default color',

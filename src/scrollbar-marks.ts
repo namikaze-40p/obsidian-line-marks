@@ -10,16 +10,12 @@ type Marker = { mark: Mark, top: number, text: string };
 // `top` and `height` are the position (from the top of the editor) and height to lay the track over the scrolling area.
 type Measure = { top: number, height: number, markers: Marker[] };
 
-// Highlights the target line, like other jumps (from commands and the mark lists).
-const jumpTo = (view: EditorView, from: number): void => {
-	view.dispatch({ selection: { anchor: from }, effects: EditorView.scrollIntoView(from, { y: 'center' }) });
-	view.focus();
-	flashLine(view, from);
-};
+// Returns the offset to place the cursor at on the line starting at `lineFrom`, like other jumps (from commands and the mark lists).
+type FindCursorOffset = (view: EditorView, lineFrom: number) => number;
 
 // Shows where the marks in the file are along the scrollbar. Clicking a marker jumps to its line.
 // It cannot draw on the scrollbar itself, so it draws on a track laid over the right edge of the editor.
-export const scrollbarMarks = ViewPlugin.fromClass(class implements PluginValue {
+export const createScrollbarMarks = (findCursorOffset: FindCursorOffset) => ViewPlugin.fromClass(class implements PluginValue {
 	private trackEl: HTMLElement;
 
 	constructor(private view: EditorView) {
@@ -74,7 +70,15 @@ export const scrollbarMarks = ViewPlugin.fromClass(class implements PluginValue 
 			setTooltip(markerEl, mark.label || text || '(empty line)', { placement: 'left' });
 			// Do not affect the focus of the editor or the scrollbar.
 			markerEl.addEventListener('mousedown', event => event.preventDefault());
-			markerEl.addEventListener('click', () => jumpTo(this.view, mark.from));
+			markerEl.addEventListener('click', () => this.jumpTo(mark.from));
 		}
+	}
+
+	// Highlights the target line, like other jumps.
+	private jumpTo(from: number): void {
+		const head = findCursorOffset(this.view, from);
+		this.view.dispatch({ selection: { anchor: head }, effects: EditorView.scrollIntoView(head, { y: 'center' }) });
+		this.view.focus();
+		flashLine(this.view, from);
 	}
 });

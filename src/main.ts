@@ -1,4 +1,4 @@
-import { debounce, Editor, MarkdownView, Menu, Notice, Plugin, TAbstractFile, TFile } from 'obsidian';
+import { debounce, Editor, editorInfoField, MarkdownView, Menu, Notice, Plugin, TAbstractFile, TFile } from 'obsidian';
 import { EditorView } from '@codemirror/view';
 import { Extension } from '@codemirror/state';
 
@@ -11,7 +11,8 @@ import { MarkStore } from './mark-store';
 import { createMarkExtension, editMark, findMark, toggleMark } from './mark-extension';
 import { EditMarkModal } from './edit-mark-modal';
 import { pickMeta } from './mark-restore';
-import { scrollbarMarks } from './scrollbar-marks';
+import { createScrollbarMarks } from './scrollbar-marks';
+import { findCursorCh } from './cursor-position';
 import { FLASH_DURATION, flashField, flashLine } from './flash-line';
 import { MarkMeta } from './type';
 
@@ -42,6 +43,7 @@ export default class LineMarks extends Plugin {
 	// Its contents are replaced depending on the settings, and applied with updateOptions.
 	private editorExtensions: Extension[] = [];
 	private markExtension!: Extension;
+	private scrollbarMarks!: Extension;
 	private lastPreviewJump: PreviewJump | null = null;
 	private lastEditorJump: EditorJump | null = null;
 	// Timers of the elements highlighted by this plugin, so that an earlier timer does not remove a newer highlight when jumping repeatedly.
@@ -149,6 +151,10 @@ export default class LineMarks extends Plugin {
 			onGutterMenu: (view, pos, event) => this.showGutterMenu(view, pos, event),
 			getDefaultMeta: () => this.getDefaultMeta(),
 		});
+		this.scrollbarMarks = createScrollbarMarks((view, lineFrom) => {
+			const line = view.state.doc.lineAt(lineFrom);
+			return line.from + this.findCursorCh(view.state.field(editorInfoField, false)?.file ?? null, line.number - 1, line.text);
+		});
 		this.updateEditorExtensions();
 		this.registerEditorExtension(this.editorExtensions);
 	}
@@ -175,7 +181,7 @@ export default class LineMarks extends Plugin {
 		this.editorExtensions.length = 0;
 		this.editorExtensions.push(this.markExtension, flashField);
 		if (this.settings.isShowScrollbarMarks) {
-			this.editorExtensions.push(scrollbarMarks);
+			this.editorExtensions.push(this.scrollbarMarks);
 		}
 		this.app.workspace.updateOptions();
 	}
@@ -479,9 +485,11 @@ export default class LineMarks extends Plugin {
 	// A saved line number can exceed the line count if the file was shortened outside Obsidian, so clamp it.
 	private moveCursor(editor: Editor, line: number, file: TFile | null): void {
 		const target = Math.min(line, editor.lastLine());
-		helpers.setCursor(editor, target);
+		const pos = { line: target, ch: this.findCursorCh(file, target, editor.getLine(target)) };
+		helpers.setCursor(editor, pos);
 		// Do not rely only on the scrolling caused by the cursor move: show the target line in the center of the screen.
-		editor.scrollIntoView({ from: { line: target, ch: 0 }, to: { line: target, ch: 0 } }, true);
+		// Scroll to the cursor rather than the start of the line, so that the cursor at the end of a long wrapped line is also shown.
+		editor.scrollIntoView({ from: pos, to: pos }, true);
 		const editorView = getEditorView(editor);
 		const cursorLine = editor.getCursor().line;
 		this.lastEditorJump = cursorLine === target ? null : { editorView, path: file?.path ?? null, line: target, cursorLine };
@@ -489,6 +497,12 @@ export default class LineMarks extends Plugin {
 			const sourceViewEl = editorView.dom.closest<HTMLElement>('.markdown-source-view');
 			return sourceViewEl ? this.findPropertiesEl(sourceViewEl, file, target) : null;
 		});
+	}
+
+	// The column to place the cursor at on the line (0-based) after a jump, depending on the "Cursor position after jump" setting.
+	private findCursorCh(file: TFile | null, line: number, text: string): number {
+		const { cursorPosition } = this.settings;
+		return cursorPosition === 'lineStart' ? 0 : findCursorCh(text, cursorPosition, helpers.findLineBlock(this.app, file, line));
 	}
 
 	// When jumping to a line in the frontmatter in Live Preview or reading mode, the line is shown as the properties,
