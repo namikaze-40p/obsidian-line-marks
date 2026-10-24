@@ -1,5 +1,6 @@
 import { StateEffect, StateField } from '@codemirror/state';
-import { BlockType, Decoration, DecorationSet, EditorView } from '@codemirror/view';
+import { Decoration, DecorationSet, EditorView } from '@codemirror/view';
+import { findWidget } from './block-widget';
 
 // The same duration (ms) as Obsidian's own highlight when showing a line in reading mode.
 export const FLASH_DURATION = 3000;
@@ -43,24 +44,9 @@ const clearFlash = (view: EditorView): void => {
 	}
 };
 
-// When lines are replaced by a widget (e.g. tables and callouts in Live Preview), line decorations are not visible.
-// In that case, highlight the whole widget, as the whole block is highlighted in reading mode.
-const findWidget = (view: EditorView, pos: number): HTMLElement | null => {
-	const block = view.lineBlockAt(pos);
-	if (block.type !== BlockType.WidgetRange) {
-		return null;
-	}
-	const widgetEl = Array.from(view.contentDOM.children).find(child => {
-		try {
-			return view.posAtDOM(child) === block.from;
-		} catch {
-			return false;
-		}
-	});
-	return widgetEl instanceof HTMLElement ? widgetEl : null;
-};
-
-// Highlights the line jumped to for a while. `findTarget` finds an element to highlight instead of the line (otherwise, a widget is looked for).
+// Highlights the line jumped to for a while. `findTarget` finds an element to highlight instead of the line.
+// Otherwise, when the line is replaced by a widget (e.g. tables and callouts in Live Preview), where line decorations are not visible,
+// the whole widget is highlighted, as the whole block is highlighted in reading mode.
 export const flashLine = (view: EditorView, pos: number, findTarget?: () => HTMLElement | null): void => {
 	clearFlash(view);
 	view.dispatch({ effects: flashEffect.of(view.state.doc.lineAt(pos).from) });

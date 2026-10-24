@@ -14,6 +14,7 @@ import { pickMeta } from './mark-restore';
 import { createScrollbarMarks } from './scrollbar-marks';
 import { findCursorCh } from './cursor-position';
 import { FLASH_DURATION, flashField, flashLine } from './flash-line';
+import { centerWidget, waitForElement } from './block-widget';
 import { MarkMeta } from './type';
 
 const getEditorView = (editor: Editor): EditorView => (editor as Editor & { cm: EditorView }).cm;
@@ -27,9 +28,6 @@ type PreviewJump = { view: MarkdownView, path: string | null, line: number };
 // The line (0-based) last jumped to in editing mode, and the line where the cursor actually ended up.
 // When the cursor cannot be placed on the target line (e.g. the frontmatter in Live Preview, hidden by the properties), it is moved to another line.
 type EditorJump = { editorView: EditorView, path: string | null, line: number, cursorLine: number };
-
-// Maximum number of frames to wait in reading mode until the target element (the highlighted block or the properties) is rendered.
-const ELEMENT_WAIT_FRAMES = 60;
 
 // These events mean that the user scrolled (or moved the cursor, or edited) manually.
 const MANUAL_SCROLL_EVENTS = ['wheel', 'touchmove', 'pointerdown'] as const;
@@ -364,7 +362,7 @@ export default class LineMarks extends Plugin {
 		// So scroll to the top, and once the properties are rendered, scroll to them and highlight them (the same as in editing mode).
 		if (this.isInFrontmatter(view.file, line)) {
 			view.previewMode.applyScroll(0);
-			this.waitForElement(() => this.findPropertiesEl(container, view.file, line), propertiesEl => {
+			waitForElement(() => this.findPropertiesEl(container, view.file, line), propertiesEl => {
 				propertiesEl.scrollIntoView({ block: 'start' });
 				this.flashElement(propertiesEl);
 			});
@@ -374,7 +372,7 @@ export default class LineMarks extends Plugin {
 		view.setEphemeralState({ line });
 		// Obsidian shows the target block at the top of the screen, so center it once it is highlighted (the same as in editing mode).
 		// Blocks taller than the screen stay at the top, so that their beginning is not hidden.
-		this.waitForElement(() => container.find('.is-flashing'), blockEl => {
+		waitForElement(() => container.find('.is-flashing'), blockEl => {
 			const scroller = blockEl.closest('.markdown-preview-view') ?? container;
 			if (blockEl.getBoundingClientRect().height < scroller.clientHeight) {
 				blockEl.scrollIntoView({ block: 'center' });
@@ -386,20 +384,6 @@ export default class LineMarks extends Plugin {
 		window.clearTimeout(this.elementFlashTimers.get(el));
 		el.addClass('is-flashing');
 		this.elementFlashTimers.set(el, window.setTimeout(() => el.removeClass('is-flashing'), FLASH_DURATION));
-	}
-
-	// In reading mode, elements do not exist until rendered, so wait until found (up to ELEMENT_WAIT_FRAMES frames).
-	private waitForElement(find: () => HTMLElement | null, onFound: (el: HTMLElement) => void): void {
-		let frames = 0;
-		const tick = () => {
-			const el = find();
-			if (el) {
-				onFound(el);
-			} else if (++frames < ELEMENT_WAIT_FRAMES) {
-				window.requestAnimationFrame(tick);
-			}
-		};
-		window.requestAnimationFrame(tick);
 	}
 
 	private recordPreviewJump(view: MarkdownView, line: number): void {
@@ -486,14 +470,22 @@ export default class LineMarks extends Plugin {
 	private moveCursor(editor: Editor, line: number, file: TFile | null): void {
 		const target = Math.min(line, editor.lastLine());
 		const pos = { line: target, ch: this.findCursorCh(file, target, editor.getLine(target)) };
+		const editorView = getEditorView(editor);
+		// Focus before moving the cursor: in Live Preview, a table opens the editor of the cell only when the editor has focus as the cursor moves into it.
+		// (When jumping from the sidebar, the sidebar still has focus.)
+		editorView.focus();
 		helpers.setCursor(editor, pos);
 		// Do not rely only on the scrolling caused by the cursor move: show the target line in the center of the screen.
 		// Scroll to the cursor rather than the start of the line, so that the cursor at the end of a long wrapped line is also shown.
 		editor.scrollIntoView({ from: pos, to: pos }, true);
-		const editorView = getEditorView(editor);
 		const cursorLine = editor.getCursor().line;
 		this.lastEditorJump = cursorLine === target ? null : { editorView, path: file?.path ?? null, line: target, cursorLine };
-		flashLine(editorView, editor.posToOffset({ line: target, ch: 0 }), () => {
+		const lineFrom = editor.posToOffset({ line: target, ch: 0 });
+		// The properties (the frontmatter in Live Preview) are highlighted instead, and keep the scrolling as before.
+		if (!this.isInFrontmatter(file, target)) {
+			centerWidget(editorView, lineFrom);
+		}
+		flashLine(editorView, lineFrom, () => {
 			const sourceViewEl = editorView.dom.closest<HTMLElement>('.markdown-source-view');
 			return sourceViewEl ? this.findPropertiesEl(sourceViewEl, file, target) : null;
 		});

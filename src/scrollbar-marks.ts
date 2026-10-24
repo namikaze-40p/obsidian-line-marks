@@ -4,6 +4,7 @@ import { marksField } from './mark-extension';
 import { Mark } from './mark-tracker';
 import { colorClass } from './color';
 import { flashLine } from './flash-line';
+import { centerWidget } from './block-widget';
 
 type Marker = { mark: Mark, top: number, text: string };
 
@@ -77,8 +78,10 @@ export const createScrollbarMarks = (findCursorOffset: FindCursorOffset) => View
 	// Highlights the target line, like other jumps.
 	private jumpTo(from: number): void {
 		const head = findCursorOffset(this.view, from);
-		this.view.dispatch({ selection: { anchor: head }, effects: EditorView.scrollIntoView(head, { y: 'center' }) });
+		// Focus before moving the cursor, so that a table opens the editor of the cell (the same as other jumps).
 		this.view.focus();
+		this.view.dispatch({ selection: { anchor: head }, effects: EditorView.scrollIntoView(head, { y: 'center' }) });
+		centerWidget(this.view, from);
 		flashLine(this.view, from);
 	}
 });
