@@ -37,6 +37,7 @@ export interface Settings {
 	openIn: OpenIn;
 	cursorPosition: CursorPosition;
 	isShowScrollbarMarks: boolean;
+	isShowLineBackground: boolean;
 	// Color of new marks.
 	defaultColor: MarkColor | 'none';
 	listSortOrder: MarkListSortOrder;
@@ -52,6 +53,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	openIn: 'current',
 	cursorPosition: 'lineStart',
 	isShowScrollbarMarks: true,
+	isShowLineBackground: false,
 	defaultColor: 'none',
 	listSortOrder: 'fileName',
 	sidebarGroupBy: 'file',
@@ -98,6 +100,11 @@ export class SettingTab extends PluginSettingTab {
 				control: { type: 'toggle', key: 'isShowScrollbarMarks', defaultValue: DEFAULT_SETTINGS.isShowScrollbarMarks },
 			},
 			{
+				name: 'Color marked lines',
+				desc: 'Color the background of marked lines lightly with the color of each mark. Marks with no color are not colored. Only in editing mode, and not on lines shown as a table or a callout in Live Preview.',
+				control: { type: 'toggle', key: 'isShowLineBackground', defaultValue: DEFAULT_SETTINGS.isShowLineBackground },
+			},
+			{
 				name: 'Mark list sort order',
 				desc: 'Order of marks in the mark list (search). `Color` sorts by color (no color last), then by label (or line text), file name, and line. The mark list in the sidebar has its own grouping, which you can switch in the sidebar.',
 				control: { type: 'dropdown', key: 'listSortOrder', options: LIST_SORT_ORDER, defaultValue: DEFAULT_SETTINGS.listSortOrder },
@@ -118,7 +125,7 @@ export class SettingTab extends PluginSettingTab {
 
 	async setControlValue(key: string, value: unknown): Promise<void> {
 		await super.setControlValue(key, value);
-		if (key === 'isShowScrollbarMarks') {
+		if (key === 'isShowScrollbarMarks' || key === 'isShowLineBackground') {
 			this.plugin.updateEditorExtensions();
 		} else if (key === 'sidebarGroupBy') {
 			this.plugin.refreshMarkListViews();

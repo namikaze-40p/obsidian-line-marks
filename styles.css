@@ -25,6 +25,11 @@
 .line-marks-color-blue { --line-marks-color: var(--color-blue); }
 .line-marks-color-purple { --line-marks-color: var(--color-purple); }
 
+/* Background of marked lines ("Color marked lines"). Override --line-marks-line-opacity with a CSS snippet to change how strong it is. */
+.line-marks-line {
+	background-color: color-mix(in srgb, var(--line-marks-color) var(--line-marks-line-opacity, 12%), transparent);
+}
+
 /* The icon shape is a mask filled with the background color, so that the color can be changed. */
 .line-marks-icon {
 	display: inline-block;

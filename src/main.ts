@@ -12,6 +12,7 @@ import { createMarkExtension, editMark, findMark, toggleMark } from './mark-exte
 import { EditMarkModal } from './edit-mark-modal';
 import { pickMeta } from './mark-restore';
 import { createScrollbarMarks } from './scrollbar-marks';
+import { lineBackground } from './line-background';
 import { findCursorCh } from './cursor-position';
 import { FLASH_DURATION, flashField, flashLine } from './flash-line';
 import { centerWidget, waitForElement } from './block-widget';
@@ -207,6 +208,9 @@ export default class LineMarks extends Plugin {
 		this.editorExtensions.push(this.markExtension, flashField);
 		if (this.settings.isShowScrollbarMarks) {
 			this.editorExtensions.push(this.scrollbarMarks);
+		}
+		if (this.settings.isShowLineBackground) {
+			this.editorExtensions.push(lineBackground);
 		}
 		this.app.workspace.updateOptions();
 	}
