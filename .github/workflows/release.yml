@@ -5,9 +5,12 @@ on:
     tags:
       - "*"
 
-# Required to create a release and upload files. Set here so that it does not depend on the repository default (read-only).
+# `contents` is required to create a release and upload files. Set here so that it does not depend on the repository default (read-only).
+# `id-token` and `attestations` are required to attest the build provenance of the files.
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   build:
@@ -26,6 +29,15 @@ jobs:
         run: |
           npm ci
           npm run build
+
+      # Lets users verify that the released files were built from this repository by this workflow (`gh attestation verify`).
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
 
       - name: Create release
         env:
