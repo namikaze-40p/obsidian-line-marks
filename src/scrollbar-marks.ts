@@ -11,12 +11,16 @@ type Marker = { mark: Mark, top: number, text: string };
 // `top` and `height` are the position (from the top of the editor) and height to lay the track over the scrolling area.
 type Measure = { top: number, height: number, markers: Marker[] };
 
-// Returns the offset to place the cursor at on the line starting at `lineFrom`, like other jumps (from commands and the mark lists).
-type FindCursorOffset = (view: EditorView, lineFrom: number) => number;
+// `findCursorOffset` returns the offset to place the cursor at on the line starting at `lineFrom`, like other jumps (from commands and the mark lists).
+// `onJump` is called after jumping to a mark.
+type ScrollbarMarksOptions = {
+	findCursorOffset: (view: EditorView, lineFrom: number) => number,
+	onJump: (view: EditorView, mark: Mark) => void,
+};
 
 // Shows where the marks in the file are along the scrollbar. Clicking a marker jumps to its line.
 // It cannot draw on the scrollbar itself, so it draws on a track laid over the right edge of the editor.
-export const createScrollbarMarks = (findCursorOffset: FindCursorOffset) => ViewPlugin.fromClass(class implements PluginValue {
+export const createScrollbarMarks = ({ findCursorOffset, onJump }: ScrollbarMarksOptions) => ViewPlugin.fromClass(class implements PluginValue {
 	private trackEl: HTMLElement;
 
 	constructor(private view: EditorView) {
@@ -71,17 +75,19 @@ export const createScrollbarMarks = (findCursorOffset: FindCursorOffset) => View
 			setTooltip(markerEl, mark.label || text || '(empty line)', { placement: 'left' });
 			// Do not affect the focus of the editor or the scrollbar.
 			markerEl.addEventListener('mousedown', event => event.preventDefault());
-			markerEl.addEventListener('click', () => this.jumpTo(mark.from));
+			markerEl.addEventListener('click', () => this.jumpTo(mark));
 		}
 	}
 
 	// Highlights the target line, like other jumps.
-	private jumpTo(from: number): void {
+	private jumpTo(mark: Mark): void {
+		const { from } = mark;
 		const head = findCursorOffset(this.view, from);
 		// Focus before moving the cursor, so that a table opens the editor of the cell (the same as other jumps).
 		this.view.focus();
 		this.view.dispatch({ selection: { anchor: head }, effects: EditorView.scrollIntoView(head, { y: 'center' }) });
 		centerWidget(this.view, from);
 		flashLine(this.view, from);
+		onJump(this.view, mark);
 	}
 });

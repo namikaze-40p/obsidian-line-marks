@@ -15,12 +15,18 @@ import { createScrollbarMarks } from './scrollbar-marks';
 import { findCursorCh } from './cursor-position';
 import { FLASH_DURATION, flashField, flashLine } from './flash-line';
 import { centerWidget, waitForElement } from './block-widget';
-import { MarkMeta } from './type';
+import { MarkColor, MarkMeta, SavedMark } from './type';
 
 const getEditorView = (editor: Editor): EditorView => (editor as Editor & { cm: EditorView }).cm;
 
 // `current` is the current position (1-based line number). `moveTo` moves to the given line (1-based).
 type JumpPosition = { file: TFile | null, current: number, moveTo: (line: number) => void };
+
+// Which marks to jump to. `color` is the color of the marks to go through (undefined for marks with no color); null jumps to any mark.
+type JumpFilter = { color: MarkColor | undefined } | null;
+
+// The mark last jumped to, identified by when it was marked, which does not change while editing (unlike the line).
+type JumpedMark = { path: string, createdAt: number };
 
 // The line (0-based) last jumped to in reading mode.
 type PreviewJump = { view: MarkdownView, path: string | null, line: number };
@@ -44,6 +50,9 @@ export default class LineMarks extends Plugin {
 	private scrollbarMarks!: Extension;
 	private lastPreviewJump: PreviewJump | null = null;
 	private lastEditorJump: EditorJump | null = null;
+	// The mark last jumped to (from any jump: the commands, the mark lists, and the scrollbar), for jumping to marks with the same color.
+	// Kept only while the plugin is running, not saved to data.json: it is soon out of date, and saving on every jump could cause conflicts with sync services.
+	private lastJumpedMark: JumpedMark | null = null;
 	// Timers of the elements highlighted by this plugin, so that an earlier timer does not remove a newer highlight when jumping repeatedly.
 	private elementFlashTimers = new WeakMap<HTMLElement, number>();
 	// Views that already have the listeners for detecting manual scrolling.
@@ -84,6 +93,18 @@ export default class LineMarks extends Plugin {
 			id: 'jump-to-next-mark',
 			name: 'Jump to next mark',
 			checkCallback: (checking: boolean) => this.runJumpCommand(checking, true),
+		});
+
+		this.addCommand({
+			id: 'jump-to-previous-mark-with-same-color',
+			name: 'Jump to previous mark with the same color',
+			checkCallback: (checking: boolean) => this.runJumpCommand(checking, false, true),
+		});
+
+		this.addCommand({
+			id: 'jump-to-next-mark-with-same-color',
+			name: 'Jump to next mark with the same color',
+			checkCallback: (checking: boolean) => this.runJumpCommand(checking, true, true),
 		});
 
 		this.addCommand({
@@ -149,9 +170,15 @@ export default class LineMarks extends Plugin {
 			onGutterMenu: (view, pos, event) => this.showGutterMenu(view, pos, event),
 			getDefaultMeta: () => this.getDefaultMeta(),
 		});
-		this.scrollbarMarks = createScrollbarMarks((view, lineFrom) => {
-			const line = view.state.doc.lineAt(lineFrom);
-			return line.from + this.findCursorCh(view.state.field(editorInfoField, false)?.file ?? null, line.number - 1, line.text);
+		this.scrollbarMarks = createScrollbarMarks({
+			findCursorOffset: (view, lineFrom) => {
+				const line = view.state.doc.lineAt(lineFrom);
+				return line.from + this.findCursorCh(view.state.field(editorInfoField, false)?.file ?? null, line.number - 1, line.text);
+			},
+			onJump: (view, mark) => {
+				const path = view.state.field(editorInfoField, false)?.file?.path;
+				this.lastJumpedMark = path ? { path, createdAt: mark.createdAt } : null;
+			},
 		});
 		this.updateEditorExtensions();
 		this.registerEditorExtension(this.editorExtensions);
@@ -219,6 +246,9 @@ export default class LineMarks extends Plugin {
 	private onFileRename(file: TAbstractFile, oldPath: string): void {
 		if (file instanceof TFile) {
 			this.store.rename(oldPath, file.path);
+			if (this.lastJumpedMark?.path === oldPath) {
+				this.lastJumpedMark = { ...this.lastJumpedMark, path: file.path };
+			}
 		}
 	}
 
@@ -274,19 +304,40 @@ export default class LineMarks extends Plugin {
 	// Available in reading mode as well as in editors (editorCallback is not available in reading mode).
 	// When no file is open, or a non-Markdown file is open (there is no current position),
 	// jumps to the mark in the first (or last, when going back) file, if jumping across files is allowed.
-	private runJumpCommand(checking: boolean, isNext: boolean): boolean {
+	// `isSameColor` limits the marks to those with the same color as the base mark (see findSameColorFilter).
+	private runJumpCommand(checking: boolean, isNext: boolean, isSameColor = false): boolean {
 		const position = this.getJumpPosition();
 		if (!position && !this.canJumpToOtherFile()) {
 			return false;
 		}
 		if (!checking) {
-			void (position ? this.jumpToMark(position, isNext) : this.jumpToOtherFile(null, isNext));
+			const filter = isSameColor ? this.findSameColorFilter(position) : null;
+			void (position ? this.jumpToMark(position, isNext, filter) : this.jumpToOtherFile(null, isNext, filter));
 		}
 		return true;
 	}
 
+	// The base mark is the mark on the current line, or else the mark last jumped to. Marks with no color go through marks with no color.
+	// When there is neither, jumps to any mark, and the mark jumped to becomes the base of the next jump.
+	private findSameColorFilter(position: JumpPosition | null): JumpFilter {
+		const currentMark = position?.file ? this.store.get(position.file.path).find(({ line }) => line === position.current) : undefined;
+		const jumped = this.lastJumpedMark;
+		const baseMark = currentMark ?? (jumped ? this.store.get(jumped.path).find(({ createdAt }) => createdAt === jumped.createdAt) : undefined);
+		return baseMark ? { color: baseMark.color } : null;
+	}
+
 	private canJumpToOtherFile(): boolean {
 		return this.settings.isAllowCrossFile && this.store.paths().some(path => this.app.vault.getAbstractFileByPath(path) instanceof TFile);
+	}
+
+	private findJumpTargets(path: string, filter: JumpFilter): SavedMark[] {
+		const marks = this.store.get(path);
+		return filter ? marks.filter(({ color }) => color === filter.color) : marks;
+	}
+
+	private recordJumpedMark(path: string, line: number): void {
+		const mark = this.store.get(path).find(mark => mark.line === line);
+		this.lastJumpedMark = mark ? { path, createdAt: mark.createdAt } : null;
 	}
 
 	// The current file, the current position (1-based line number, which can be fractional in reading mode), and a function to move to a given line.
@@ -318,24 +369,30 @@ export default class LineMarks extends Plugin {
 		return cursorLine;
 	}
 
-	private async jumpToMark({ file, current, moveTo }: JumpPosition, isNext: boolean): Promise<void> {
-		const lines = file ? this.store.get(file.path).map(({ line }) => line) : [];
+	private async jumpToMark({ file, current, moveTo }: JumpPosition, isNext: boolean, filter: JumpFilter = null): Promise<void> {
+		const lines = file ? this.findJumpTargets(file.path, filter).map(({ line }) => line) : [];
+		const jumpTo = (line: number) => {
+			moveTo(line);
+			if (file) {
+				this.recordJumpedMark(file.path, line);
+			}
+		};
 		const line = isNext
 			? lines.find(line => line > current)
 			: [...lines].reverse().find(line => line < current);
 		if (line) {
-			moveTo(line);
+			jumpTo(line);
 			return;
 		}
 
 		if (!this.settings.isAllowCrossFile) {
 			// Wrap around to the first (or last) mark in the file.
 			if (lines.length) {
-				moveTo(isNext ? lines[0] : lines[lines.length - 1]);
+				jumpTo(isNext ? lines[0] : lines[lines.length - 1]);
 			}
 			return;
 		}
-		await this.jumpToOtherFile(file, isNext);
+		await this.jumpToOtherFile(file, isNext, filter);
 	}
 
 	// The current position (0-based) in reading mode: the line shown at the top of the screen.
@@ -414,8 +471,9 @@ export default class LineMarks extends Plugin {
 		}, { capture: true });
 	}
 
-	private async jumpToOtherFile(file: TFile | null, isNext: boolean): Promise<void> {
-		const paths = this.store.paths().filter(path => this.app.vault.getAbstractFileByPath(path) instanceof TFile);
+	// The current file is included, so that when no other file has marks to jump to, it wraps around to the first (or last) mark in the current file.
+	private async jumpToOtherFile(file: TFile | null, isNext: boolean, filter: JumpFilter = null): Promise<void> {
+		const paths = this.store.paths().filter(path => this.app.vault.getAbstractFileByPath(path) instanceof TFile && (path === file?.path || this.findJumpTargets(path, filter).length));
 		if (!paths.length) {
 			return;
 		}
@@ -424,7 +482,10 @@ export default class LineMarks extends Plugin {
 			? (isNext ? 0 : paths.length - 1)
 			: (index + (isNext ? 1 : -1) + paths.length) % paths.length;
 		const nextPath = paths[nextIndex];
-		const lines = this.store.get(nextPath).map(({ line }) => line);
+		const lines = this.findJumpTargets(nextPath, filter).map(({ line }) => line);
+		if (!lines.length) {
+			return;
+		}
 		await this.openMark(nextPath, isNext ? lines[0] : lines[lines.length - 1]);
 	}
 
@@ -435,6 +496,7 @@ export default class LineMarks extends Plugin {
 		if (!(file instanceof TFile)) {
 			return;
 		}
+		this.recordJumpedMark(path, line);
 
 		const existingLeaf = helpers.getExistingLeaf(this.app, path);
 		const isNewTab = (this.settings.openIn === 'new') !== isOtherWay;

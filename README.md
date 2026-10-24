@@ -16,6 +16,7 @@ Marks follow their lines while you edit: typing, adding or deleting lines, movin
    - The label is shown in the mark lists, and when you hover over the bookmark icon in the gutter.
    - The color is applied to the bookmark icon in the gutter and the mark lists.
 1. Jump between marks with `Line Marks: Jump to next mark` and `Line Marks: Jump to previous mark`. When there are no more marks in the current file, it moves on to the next (or previous) file that has marks. When no note is open, it jumps to the first (or last) mark.
+   - To go through marks of one color, use `Line Marks: Jump to next mark with the same color` and `Line Marks: Jump to previous mark with the same color`. The color is that of the mark on the current line, or else of the mark you last jumped to. On a mark with no color, it goes through marks with no color. When there is neither, it jumps to the next (or previous) mark, whose color is then used for the next jump.
 1. Open the list of all marks in the right sidebar with `Line Marks: Open mark list in sidebar`, or by clicking the bookmark icon in the ribbon.
    - Marks are grouped by file, and the list stays up to date while you edit. The file you are viewing is highlighted.
    - To group marks by color instead, click the `Change grouping` button at the top of the list (or change `Sidebar grouping` in the settings). Colors are listed in the order of the color buttons, and marks with no color come last. Within a color, marks are sorted by label (or line text), file name, and line.
