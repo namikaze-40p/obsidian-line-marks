@@ -1,7 +1,6 @@
 /* No gutter in nested editors such as table cells (it would shift the text in the cell).
-   The gutter container (.cm-gutters) has padding too, so hide it as well if it contains only this plugin's gutter. */
-.line-marks-nested .line-marks-gutter,
-.line-marks-nested .cm-gutters:not(:has(.cm-gutter:not(.line-marks-gutter))) {
+   Hide the whole gutter container (.cm-gutters), because it has padding too. */
+.line-marks-nested .cm-gutters {
 	display: none;
 }
 
