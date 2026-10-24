@@ -1,6 +1,6 @@
 {
 	"name": "line-marks",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "An Obsidian plugin to mark lines you want to come back to, and jump between them across notes. Marks follow their lines as you edit.",
 	"main": "main.js",
 	"scripts": {
