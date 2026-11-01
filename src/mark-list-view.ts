@@ -2,7 +2,7 @@ import { debounce, ItemView, Keymap, Menu, Platform, setIcon, setTooltip, Worksp
 import { MarkStore } from './mark-store';
 import { groupMarkListItems, groupMarkListItemsByColor, MarkListColorGroup, MarkListGroup, MarkListGroupBy, MarkListItem } from './mark-list';
 import { colorClass, MARK_COLORS } from './color';
-import { confirmUnmarkAll, confirmUnmarkFile, displayText, editMarkItem, loadMarkListItems, MISSING_FILE_TOOLTIP, noticeMissingFile, unmarkItem } from './mark-list-actions';
+import { confirmUnmarkAll, confirmUnmarkFile, currentLine, displayText, editMarkItem, loadMarkListItems, MISSING_FILE_TOOLTIP, noticeMissingFile, unmarkItem } from './mark-list-actions';
 import { Settings } from './settings';
 
 export const MARK_LIST_VIEW_TYPE = 'line-marks-list';
@@ -223,7 +223,7 @@ export class MarkListView extends ItemView {
 				return;
 			}
 			// Ctrl/Cmd+click (or middle click) opens the file the other way from the setting.
-			void this.openMark(item.path, item.line, !!Keymap.isModEvent(event));
+			void this.openMark(item.path, currentLine(this.store, item), !!Keymap.isModEvent(event));
 		});
 
 		this.addMenu(itemEl, () => {

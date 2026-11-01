@@ -1,8 +1,8 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupMarkListItems, groupMarkListItemsByColor, sortMarkListItems, summarizeLabels } from '../src/mark-list.ts';
+import { findMarkOfItem, groupMarkListItems, groupMarkListItemsByColor, sortMarkListItems, summarizeLabels } from '../src/mark-list.ts';
 import type { MarkListItem } from '../src/mark-list.ts';
-import type { MarkMeta } from '../src/type.ts';
+import type { MarkMeta, SavedMark } from '../src/type.ts';
 
 const item = (path: string, line: number, createdAt: number, isMissing = false): MarkListItem => ({ path, line, text: '', createdAt, isMissing });
 
@@ -97,5 +97,27 @@ describe('grouping by color', () => {
 	test('groupMarkListItemsByColor: a color with only marks of missing files is also in the order of colors', () => {
 		const groups = groupMarkListItemsByColor([colored('a.md', 1, { color: 'green' }), colored('x.md', 1, { color: 'red' }, '', true)]);
 		assert.deepEqual(groups.map(({ color }) => color), ['red', 'green']);
+	});
+});
+
+describe('findMarkOfItem', () => {
+	const mark = (line: number, createdAt: number): SavedMark => ({ line, text: '', createdAt });
+
+	test('finds the mark by when it was marked, even if its line has changed', () => {
+		const marks = [mark(1, 100), mark(5, 200), mark(9, 300)];
+		assert.equal(findMarkOfItem(marks, { line: 4, createdAt: 200 }), marks[1]);
+	});
+
+	test('does not find the mark on the same line marked at another time', () => {
+		assert.equal(findMarkOfItem([mark(4, 100)], { line: 4, createdAt: 200 }), undefined);
+	});
+
+	test('finds nothing when the mark has been unmarked', () => {
+		assert.equal(findMarkOfItem([], { line: 4, createdAt: 200 }), undefined);
+	});
+
+	test('of marks with the same time, finds the one nearest to the line of the item', () => {
+		const marks = [mark(1, 100), mark(6, 100), mark(9, 100)];
+		assert.equal(findMarkOfItem(marks, { line: 7, createdAt: 100 }), marks[1]);
 	});
 });

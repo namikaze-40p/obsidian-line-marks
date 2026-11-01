@@ -1,6 +1,6 @@
 import { App, Notice, TFile } from 'obsidian';
 import { MarkStore } from './mark-store';
-import { LabelCandidate, MarkListItem, summarizeLabels } from './mark-list';
+import { findMarkOfItem, LabelCandidate, MarkListItem, summarizeLabels } from './mark-list';
 import { ConfirmModal } from './confirm-modal';
 import { EditMarkModal } from './edit-mark-modal';
 import { pickMeta } from './mark-restore';
@@ -23,11 +23,19 @@ export const loadMarkListItems = (app: App, store: MarkStore): MarkListItem[] =>
 	});
 };
 
+// The line of the mark now, which can differ from that of the item (see findMarkOfItem).
+export const currentLine = (store: MarkStore, item: MarkListItem): number => findMarkOfItem(store.get(item.path), item)?.line ?? item.line;
+
+// Does nothing if the mark has already been unmarked.
 export const unmarkItem = (store: MarkStore, item: MarkListItem): void => {
-	const marks = store.get(item.path).filter(({ line }) => line !== item.line);
+	const marks = store.get(item.path);
+	const target = findMarkOfItem(marks, item);
+	if (!target) {
+		return;
+	}
 	// Notify, so that open editors are updated too.
-	store.set(item.path, marks, { notify: true });
-	new Notice(`Unmarked "${truncate(displayText(item.text))}" (${item.path}:${item.line})`);
+	store.set(item.path, marks.filter(mark => mark !== target), { notify: true });
+	new Notice(`Unmarked "${truncate(displayText(target.text))}" (${item.path}:${target.line})`);
 };
 
 // Builds label suggestions from all marks in the vault (including those of missing files).
@@ -35,12 +43,17 @@ export const collectLabels = (store: MarkStore): LabelCandidate[] =>
 	summarizeLabels(store.paths().flatMap(path => store.get(path)));
 
 // Edits the label and color from a mark list. Notifies, so that open editors are updated too.
+// Does nothing if the mark has been unmarked while the modal is open.
 export const editMarkItem = (app: App, store: MarkStore, item: MarkListItem, onSaved?: () => void): void => {
 	new EditMarkModal(app, item, collectLabels(store), meta => {
-		const marks = store.get(item.path).map(mark => mark.line === item.line
+		const marks = store.get(item.path);
+		const target = findMarkOfItem(marks, item);
+		if (!target) {
+			return;
+		}
+		store.set(item.path, marks.map(mark => mark === target
 			? { line: mark.line, text: mark.text, createdAt: mark.createdAt, ...meta }
-			: mark);
-		store.set(item.path, marks, { notify: true });
+			: mark), { notify: true });
 		onSaved?.();
 	}).open();
 };

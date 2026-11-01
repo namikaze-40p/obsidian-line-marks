@@ -1,9 +1,18 @@
-import type { MarkColor, MarkMeta } from './type';
+import type { MarkColor, MarkMeta, SavedMark } from './type';
 
 // An item in the mark lists. `isMissing` means the file was not found (renamed or deleted outside Obsidian).
 export type MarkListItem = { path: string, line: number, text: string, createdAt: number, isMissing: boolean } & MarkMeta;
 
 export type MarkListSortOrder = 'fileName' | 'dateMarked' | 'color';
+
+// Finds the current mark of an item among the marks of its file. An item can be out of date (the sidebar is rendered a moment after editing),
+// so the mark is found by when it was marked, which does not change while editing (unlike the line).
+// If several marks have the same time (e.g. data.json edited by hand), the one nearest to the line of the item is used.
+export const findMarkOfItem = (marks: SavedMark[], item: Pick<MarkListItem, 'line' | 'createdAt'>): SavedMark | undefined =>
+	marks
+		.filter(({ createdAt }) => createdAt === item.createdAt)
+		.reduce<SavedMark | undefined>((nearest, mark) =>
+			!nearest || Math.abs(mark.line - item.line) < Math.abs(nearest.line - item.line) ? mark : nearest, undefined);
 
 // Order of colors: the same as the color buttons (MARK_COLORS in color.ts), with no color last (shown last as unclassified).
 const COLOR_ORDER: (MarkColor | undefined)[] = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', undefined];

@@ -1,7 +1,7 @@
 import { App, Keymap, Platform, prepareFuzzySearch, setIcon, setTooltip, SuggestModal } from 'obsidian';
 import { MarkStore } from './mark-store';
 import { MarkListItem, sortMarkListItems } from './mark-list';
-import { displayText, loadMarkListItems, MISSING_FILE_TOOLTIP, noticeMissingFile, unmarkItem } from './mark-list-actions';
+import { currentLine, displayText, loadMarkListItems, MISSING_FILE_TOOLTIP, noticeMissingFile, unmarkItem } from './mark-list-actions';
 import { Settings } from './settings';
 import { colorClass } from './color';
 import { formatShortcut, matchesShortcut } from './shortcut';
@@ -106,7 +106,7 @@ export class MarkListModal extends SuggestModal<MarkListItem> {
 	}
 
 	onChooseSuggestion(item: MarkListItem, event: MouseEvent | KeyboardEvent): void {
-		void this.openMark(item.path, item.line, !!Keymap.isModEvent(event));
+		void this.openMark(item.path, currentLine(this.store, item), !!Keymap.isModEvent(event));
 	}
 
 	// A method rather than a getter, because a getter makes the assignment `this.chooser = ...` in the parent constructor fail.
