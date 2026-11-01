@@ -216,12 +216,39 @@ export default class LineMarks extends Plugin {
 	}
 
 	async loadSettings(): Promise<void> {
-		const loadData = await this.loadData() as Partial<Settings> | null;
-		this.settings = {
+		this.settings = this.toSettings(await this.loadData() as Partial<Settings> | null);
+	}
+
+	private toSettings(loadData: Partial<Settings> | null): Settings {
+		return {
 			...DEFAULT_SETTINGS,
 			...loadData,
 			files: loadData?.files || {},
 		};
+	}
+
+	// Called by Obsidian when data.json is changed outside this plugin (e.g. synced from another device).
+	// Without reloading, the next save would overwrite the changes with the marks in memory.
+	// If the file cannot be read (e.g. missing or broken while a sync service is still writing it), the current marks and settings are kept.
+	async onExternalSettingsChange(): Promise<void> {
+		let loadData: Partial<Settings> | null;
+		try {
+			loadData = await this.loadData() as Partial<Settings> | null;
+		} catch {
+			return;
+		}
+		if (!loadData) {
+			return;
+		}
+		// The loaded data wins over changes not saved yet (made within the last second before the change arrived).
+		// The pending save is canceled, because it would only write back the loaded data.
+		this.requestSave.cancel();
+		// Update the object in place, because the mark lists and the setting tab hold a reference to it.
+		Object.assign(this.settings, this.toSettings(loadData));
+		this.store.replaceAll(this.settings.files);
+		this.updateEditorExtensions();
+		this.refreshMarkListViews();
+		this.settingTab.update();
 	}
 
 	async saveSettings(): Promise<void> {

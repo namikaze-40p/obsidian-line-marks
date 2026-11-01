@@ -1,5 +1,6 @@
-import { EditorView } from '@codemirror/view';
-import { SavedFile, SavedMark } from './type';
+// Tests run directly on Node, so only types are imported from relative paths without an extension (value imports cannot be resolved at runtime).
+import type { EditorView } from '@codemirror/view';
+import type { SavedFile, SavedMark } from './type';
 
 type Listener = (path: string, source: EditorView | null) => void;
 
@@ -11,10 +12,14 @@ export class MarkStore {
 	// For the mark lists. Called whenever the contents change, including position changes by editing.
 	private changeListeners = new Set<() => void>();
 
-	constructor(
-		private files: Record<string, SavedFile>,
-		private requestSave: () => void,
-	) {}
+	private files: Record<string, SavedFile>;
+	private requestSave: () => void;
+
+	// Not written with parameter properties, which tests running directly on Node do not support.
+	constructor(files: Record<string, SavedFile>, requestSave: () => void) {
+		this.files = files;
+		this.requestSave = requestSave;
+	}
 
 	get(path: string): SavedMark[] {
 		return this.files[path]?.marks || [];
@@ -57,6 +62,20 @@ export class MarkStore {
 		delete this.files[oldPath];
 		this.requestSave();
 		this.emitChange();
+	}
+
+	// Replaces all marks with those loaded again (e.g. data.json changed by a sync service).
+	// Notifies only the files whose marks changed, so that open editors of other files are not reloaded.
+	replaceAll(files: Record<string, SavedFile>): void {
+		const oldFiles = this.files;
+		this.files = files;
+		const changedPaths = [...new Set([...Object.keys(oldFiles), ...Object.keys(files)])]
+			.filter(path => JSON.stringify(oldFiles[path]) !== JSON.stringify(files[path]));
+		if (!changedPaths.length) {
+			return;
+		}
+		this.emitChange();
+		changedPaths.forEach(path => this.listeners.forEach(listener => listener(path, null)));
 	}
 
 	delete(path: string): void {
