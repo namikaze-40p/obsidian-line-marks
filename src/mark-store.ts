@@ -30,8 +30,9 @@ export class MarkStore {
 	}
 
 	// Paths of files with marks (the order of jumping across files).
+	// Sorted with localeCompare, the same order as the files in the mark lists (compareByFileName in mark-list.ts).
 	paths(): string[] {
-		return Object.keys(this.files).sort();
+		return Object.keys(this.files).sort((a, b) => a.localeCompare(b));
 	}
 
 	// If `ctime` is omitted, the saved value is kept. If neither exists, it is 0 (matches no file, so restoring uses only lines whose text matches).

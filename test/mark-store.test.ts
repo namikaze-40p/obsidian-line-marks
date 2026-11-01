@@ -1,6 +1,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MarkStore } from '../src/mark-store.ts';
+import { groupMarkListItems } from '../src/mark-list.ts';
 import type { SavedFile } from '../src/type.ts';
 
 const file = (...lines: number[]): SavedFile => ({ ctime: 1, marks: lines.map(line => ({ line, text: `line ${line}`, createdAt: line })) });
@@ -50,5 +51,14 @@ describe('MarkStore.replaceAll', () => {
 		store.replaceAll(files);
 		store.set('a.md', file(2).marks);
 		assert.deepEqual(files['a.md'].marks.map(({ line }) => line), [2]);
+	});
+});
+
+describe('MarkStore.paths', () => {
+	test('in the same order as the files in the mark lists', () => {
+		const paths = ['b.md', 'B.md', 'a.md', 'A/z.md', 'Z.md', '10.md', '9.md', 'メモ.md', 'あ.md'];
+		const { store } = createStore(Object.fromEntries(paths.map(path => [path, file(1)])));
+		const items = paths.map(path => ({ path, line: 1, text: '', createdAt: 1, isMissing: false }));
+		assert.deepEqual(store.paths(), groupMarkListItems(items).map(({ path }) => path));
 	});
 });
