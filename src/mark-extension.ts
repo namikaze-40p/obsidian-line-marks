@@ -2,7 +2,7 @@ import { EditorView, gutter, GutterMarker, PluginValue, ViewPlugin, ViewUpdate }
 import { EditorState, RangeSet, StateEffect, StateField } from '@codemirror/state';
 import { editorInfoField, Platform, setTooltip, TFile } from 'obsidian';
 import { MarkStore } from './mark-store';
-import { Mark, remapMarks, sortMarks } from './mark-tracker';
+import { applyRestoredMarks, invertMarkRemoval, Mark, remapMarks, restoreMarksEffect, sortMarks } from './mark-tracker';
 import { pickMeta, restoreMarks } from './mark-restore';
 import { MarkMeta, SavedMark } from './type';
 import { colorClass } from './color';
@@ -40,7 +40,7 @@ export type MarkExtensionOptions = {
 export const marksField = StateField.define<Mark[]>({
 	create: () => [],
 	update(marks, tr) {
-		let next = tr.docChanged ? remapMarks(marks, tr) : marks;
+		let next = applyRestoredMarks(tr.docChanged ? remapMarks(marks, tr) : marks, tr);
 		for (const effect of tr.effects) {
 			if (effect.is(setMarksEffect)) {
 				next = effect.value;
@@ -139,13 +139,11 @@ const createMarkSync = (store: MarkStore) => ViewPlugin.fromClass(class implemen
 	// Whether this is a nested editor. Decided when first needed (null means not decided yet).
 	private nested: boolean | null = null;
 	private unsubscribe: () => void;
+	// Another editor of the same file whose marks this editor waits to copy, until the documents become the same (see onNotified).
+	private pendingSource: EditorView | null = null;
 
 	constructor(private view: EditorView) {
-		this.unsubscribe = store.subscribe((path, source) => {
-			if (path === this.path && source !== this.view) {
-				this.load();
-			}
-		});
+		this.unsubscribe = store.subscribe((path, source) => this.onNotified(path, source));
 		this.checkFile();
 		this.scheduleLoad();
 	}
@@ -156,15 +154,21 @@ const createMarkSync = (store: MarkStore) => ViewPlugin.fromClass(class implemen
 		}
 		if (this.checkFile() || (update.docChanged && isDocReplaced(update))) {
 			this.isLoaded = false;
+			this.pendingSource = null;
 			this.scheduleLoad();
 			return;
 		}
 		if (!this.isLoaded || !this.path) {
 			return;
 		}
-		const isMarkChanged = update.transactions.some(tr => tr.effects.some(effect => effect.is(toggleMarkEffect) || effect.is(editMarkEffect)));
+		const isMarkChanged = update.transactions.some(tr => tr.effects.some(effect =>
+			effect.is(toggleMarkEffect) || effect.is(editMarkEffect) || effect.is(restoreMarksEffect)));
 		if (isMarkChanged || update.docChanged) {
 			store.set(this.path, toSavedMarks(update.state), { ctime: this.getFile()?.stat.ctime, source: this.view, notify: isMarkChanged });
+		}
+		if (update.docChanged && this.pendingSource) {
+			// Cannot dispatch during an update, so copy after it finishes.
+			queueMicrotask(() => this.copyPendingMarks());
 		}
 	}
 
@@ -185,6 +189,36 @@ const createMarkSync = (store: MarkStore) => ViewPlugin.fromClass(class implemen
 		}
 		this.path = path;
 		return true;
+	}
+
+	// Called when the marks of the file are changed outside this editor: in another editor of the same file (`source`, e.g. split panes),
+	// or in the mark lists or data.json (`source` is null).
+	// Undo in another editor puts back marks there, and this editor receives the change of the document only later.
+	// Loading the saved marks before that would put them on the wrong lines, so wait until the documents become the same.
+	private onNotified(path: string, source: EditorView | null): void {
+		if (path !== this.path || source === this.view) {
+			return;
+		}
+		if (source) {
+			this.pendingSource = source;
+			this.copyPendingMarks();
+		} else {
+			this.pendingSource = null;
+			this.load();
+		}
+	}
+
+	// Copies the marks of the other editor once the documents are the same. They are copied instead of loading the saved marks,
+	// because this editor saves its own marks (without the restored ones) when it receives the change. So save them again too.
+	private copyPendingMarks(): void {
+		const source = this.pendingSource;
+		if (!source || this.isDestroyed || !this.path || this.isNested() || !source.state.doc.eq(this.view.state.doc)) {
+			return;
+		}
+		this.pendingSource = null;
+		this.view.dispatch({ effects: setMarksEffect.of(source.state.field(marksField)) });
+		this.isLoaded = true;
+		store.set(this.path, toSavedMarks(this.view.state), { ctime: this.getFile()?.stat.ctime, source: this.view });
 	}
 
 	// Cannot dispatch during an update, so load after it finishes.
@@ -212,4 +246,4 @@ const createMarkSync = (store: MarkStore) => ViewPlugin.fromClass(class implemen
 // so add it with editorAttributes instead of addClass.
 const nestedEditorClass = EditorView.editorAttributes.of(view => isNestedEditor(view) ? { class: 'line-marks-nested' } : null);
 
-export const createMarkExtension = (store: MarkStore, options: MarkExtensionOptions) => [marksField, createMarkGutter(options), createMarkSync(store), nestedEditorClass];
+export const createMarkExtension = (store: MarkStore, options: MarkExtensionOptions) => [marksField, invertMarkRemoval(marksField), createMarkGutter(options), createMarkSync(store), nestedEditorClass];

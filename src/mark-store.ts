@@ -50,8 +50,13 @@ export class MarkStore {
 		this.requestSave();
 		this.emitChange();
 		if (notify) {
-			this.listeners.forEach(listener => listener(path, source));
+			this.notify(path, source);
 		}
+	}
+
+	// Lets the editors of the file (other than `source`) load its marks again.
+	private notify(path: string, source: EditorView | null): void {
+		this.listeners.forEach(listener => listener(path, source));
 	}
 
 	rename(oldPath: string, newPath: string): void {
@@ -75,7 +80,7 @@ export class MarkStore {
 			return;
 		}
 		this.emitChange();
-		changedPaths.forEach(path => this.listeners.forEach(listener => listener(path, null)));
+		changedPaths.forEach(path => this.notify(path, null));
 	}
 
 	delete(path: string): void {

@@ -1,4 +1,5 @@
-import { Text, Transaction } from '@codemirror/state';
+import { StateEffect, StateField, Text, Transaction } from '@codemirror/state';
+import { invertedEffects } from '@codemirror/commands';
 import type { MarkMeta } from './type';
 
 // Marks are kept as offsets of line starts, and follow edits through CodeMirror's ChangeSet.
@@ -144,6 +145,40 @@ export const remapMarks = (marks: readonly Mark[], tr: Transaction): Mark[] => {
 		}
 		// assoc = 1: when a line break is inserted at the start of the line, the mark moves to the next line with the text.
 		addMark(result, newDoc.lineAt(tr.changes.mapPos(from, 1)).from, mark);
+	}
+	return sortMarks(result.values());
+};
+
+// Puts back marks removed by an edit, when the edit is undone. `from` is a position in the document after the undo (the document before the edit).
+// The history maps it through changes made after the edit.
+export const restoreMarksEffect = StateEffect.define<Mark[]>({
+	map: (marks, mapping) => marks.map(mark => ({ ...mark, from: mapping.mapPos(mark.from, 1) })),
+});
+
+// Records the marks removed by an edit (e.g. deleting a marked line, or merging into another mark on the same line) in the history,
+// so that undoing the edit puts them back. Marking and unmarking (which do not change the document) are not added to the history.
+export const invertMarkRemoval = (field: StateField<Mark[]>) => invertedEffects.of(tr => {
+	if (!tr.docChanged) {
+		return [];
+	}
+	const kept = new Set(tr.state.field(field).map(({ createdAt }) => createdAt));
+	const removed = tr.startState.field(field).filter(({ createdAt }) => !kept.has(createdAt));
+	return removed.length ? [restoreMarksEffect.of(removed)] : [];
+});
+
+// Applies restoreMarksEffect in the transaction. Marks still in place are not added again.
+// On a line that already has a mark, the one marked first is kept (the same as when marks are merged).
+export const applyRestoredMarks = (marks: Mark[], tr: Transaction): Mark[] => {
+	const restored = tr.effects.flatMap(effect => effect.is(restoreMarksEffect) ? effect.value : []);
+	if (!restored.length) {
+		return marks;
+	}
+	const existing = new Set(marks.map(({ createdAt }) => createdAt));
+	const result = new Map(marks.map((mark): [number, Mark] => [mark.from, mark]));
+	for (const mark of restored) {
+		if (!existing.has(mark.createdAt)) {
+			addMark(result, tr.newDoc.lineAt(Math.min(mark.from, tr.newDoc.length)).from, mark);
+		}
 	}
 	return sortMarks(result.values());
 };
